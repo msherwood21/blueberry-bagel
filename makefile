@@ -162,8 +162,8 @@ pull: test-variables
 	mv $(CCS_LIB_NAME)-$(CCS_LIB_VER) $(EXTRA_SRC_DIR)/
 	mv $(BUS_LIB_NAME)-$(BUS_LIB_VER) $(EXTRA_SRC_DIR)/
 
-build: test-variables $(OUR_OBJ) $(CCS_OBJ) $(BUS_OBJ) $(HW_WIRE_OBJ) $(HW_SPI_OBJ) $(HW_CORE_OBJ) board-archive link
-	@echo ""
+build: test-variables $(OUR_OBJ) $(CCS_OBJ) $(BUS_OBJ) $(HW_WIRE_OBJ) \
+	$(HW_SPI_OBJ) $(HW_CORE_OBJ) $(BIN_DIR)/core.a link
 	@echo "Build successful"
 	@echo ""
 
@@ -220,11 +220,19 @@ $(HW_CORE_OBJ_DIR)/%.c.o: $(HW_CORE_DIR)/%.c
 $(HW_CORE_OBJ_DIR)/%.S.o: $(HW_CORE_DIR)/%.S
 	$(TOOL_GCC_DIR)/bin/avr-gcc -c $(ASMFLAGS) -MMD -MF $(HW_CORE_DEP_DIR)/$*.S.d $(INCDIRS) $< -o $@
 
-board-archive: $(HW_CORE_OBJ)
+$(BIN_DIR)/core.a: $(HW_CORE_OBJ)
 	$(TOOL_GCC_DIR)/bin/avr-gcc-ar rcs $(BIN_DIR)/core.a $^
 
-link: $(OUR_OBJ) $(CCS_OBJ) $(BUS_OBJ) board-archive
-	$(TOOL_GCC_DIR)/bin/avr-gcc $(LINKFLAGS) -o $(BIN_DIR)/$(BIN_NAME).elf $(OUR_OBJ) $(CCS_OBJ) $(BUS_OBJ) $(HW_WIRE_OBJ) $(HW_SPI_OBJ) $(BIN_DIR)/core.a -lm
-	$(TOOL_GCC_DIR)/bin/avr-objcopy -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 $(BIN_DIR)/$(BIN_NAME).elf $(BIN_DIR)/$(BIN_NAME).eep
-	$(TOOL_GCC_DIR)/bin/avr-objcopy -O ihex -R .eeprom $(BIN_DIR)/$(BIN_NAME).elf $(BIN_DIR)/$(BIN_NAME).hex
+link: $(OUR_OBJ) $(CCS_OBJ) $(BUS_OBJ) $(BIN_DIR)/core.a \
+	$(BIN_DIR)/$(BIN_NAME).elf $(BIN_DIR)/$(BIN_NAME).eep \
+	$(BIN_DIR)/$(BIN_NAME).hex
 	$(TOOL_GCC_DIR)/bin/avr-size -A $(BIN_DIR)/$(BIN_NAME).elf
+
+$(BIN_DIR)/$(BIN_NAME).elf: $(OUR_OBJ) $(CCS_OBJ) $(BUS_OBJ) $(BIN_DIR)/core.a
+	$(TOOL_GCC_DIR)/bin/avr-gcc $(LINKFLAGS) -o $(BIN_DIR)/$(BIN_NAME).elf $(OUR_OBJ) $(CCS_OBJ) $(BUS_OBJ) $(HW_WIRE_OBJ) $(HW_SPI_OBJ) $(BIN_DIR)/core.a -lm
+
+$(BIN_DIR)/$(BIN_NAME).eep: $(BIN_DIR)/$(BIN_NAME).elf
+	$(TOOL_GCC_DIR)/bin/avr-objcopy -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 $(BIN_DIR)/$(BIN_NAME).elf $(BIN_DIR)/$(BIN_NAME).eep
+
+$(BIN_DIR)/$(BIN_NAME).hex: $(BIN_DIR)/$(BIN_NAME).elf
+	$(TOOL_GCC_DIR)/bin/avr-objcopy -O ihex -R .eeprom $(BIN_DIR)/$(BIN_NAME).elf $(BIN_DIR)/$(BIN_NAME).hex
