@@ -4,6 +4,12 @@
 # Force bash to make life easier
 SHELL := /bin/bash
 BIN_NAME := $(notdir $(shell pwd))
+CCS_LIB_NAME := Adafruit_CCS811
+CCS_LIB_VER := 1.1.1
+CCS_LIB_URL := https://github.com/adafruit/Adafruit_CCS811/archive/refs/tags/1.1.1.tar.gz
+BUS_LIB_NAME := Adafruit_BusIO
+BUS_LIB_VER := 1.14.1
+BUS_LIB_URL := https://github.com/adafruit/Adafruit_BusIO/archive/refs/tags/1.14.1.tar.gz
 
 #
 # Directories
@@ -17,11 +23,14 @@ TOOL_AVR_DIR := $(PKG_ARDUINO_DIR)/tools/avrdude/6.3.0-arduino17/
 HW_ARDUINO_DIR := $(HW_AVR_DIR)/cores/arduino
 
 SRC_DIR := src
+EXTRA_SRC_DIR := $(SRC_DIR)/third-party
 BUILD_DIR := build
 OBJ_DIR := $(BUILD_DIR)/obj
 ARDUINO_OBJ_DIR := $(OBJ_DIR)/arduino-src
+EXTRA_OBJ_DIR := $(OBJ_DIR)/third-party
 DEP_DIR := $(BUILD_DIR)/dep
 ARDUINO_DEP_DIR := $(DEP_DIR)/arduino-src
+EXTRA_DEP_DIR := $(DEP_DIR)/third-party
 BIN_DIR := $(BUILD_DIR)/bin
 
 # Test framework to make sure all our assumptions are correct before we start.
@@ -29,18 +38,21 @@ BIN_DIR := $(BUILD_DIR)/bin
 define TEST_FOR_EXISTENCE
 $(if $(wildcard $($($(1)))),,$(error $($(1)) ($($($(1)))) does not exist))
 endef
-FILES_UNDER_TEST := ARDUINO_HOME_DIR \
+DIRS_UNDER_TEST := ARDUINO_HOME_DIR \
 	PKG_ARDUINO_DIR \
 	HW_AVR_DIR \
 	TOOL_GCC_DIR \
 	TOOL_AVR_DIR \
 	HW_ARDUINO_DIR \
 	SRC_DIR \
+	EXTRA_SRC_DIR \
 	BUILD_DIR \
 	OBJ_DIR \
 	ARDUINO_OBJ_DIR \
+	EXTRA_OBJ_DIR \
 	DEP_DIR \
 	ARDUINO_DEP_DIR \
+	EXTRA_DEP_DIR \
 	BIN_DIR
 
 #
@@ -122,25 +134,48 @@ LINKFLAGS := -g \
 
 
 usage:
+	@echo ""
 	@echo "This makefile implements the following targets:"
-	@echo "  build clean upload"
+	@echo ""
+	@echo "- pull    pulls down and extracts third-party dependencies"
+	@echo "- build   creates all libraries and binaries"
+	@echo "- clean   removes all build artifacts"
+	@echo "- upload  pushes the binaries to the device"
+	@echo ""
 
-build: setup test-variables our-src board-src board-archive link
+pull: test-variables
+	mkdir -p $(BUILD_DIR)/tmp
+	wget -O $(BUILD_DIR)/tmp/$(CCS_LIB_NAME)-$(CCS_LIB_VER).tar.gz $(CCS_LIB_URL)
+	wget -O $(BUILD_DIR)/tmp/$(BUS_LIB_NAME)-$(BUS_LIB_VER).tar.gz $(BUS_LIB_URL)
+	tar -xvf $(BUILD_DIR)/tmp/$(CCS_LIB_NAME)-$(CCS_LIB_VER).tar.gz
+	tar -xvf $(BUILD_DIR)/tmp/$(BUS_LIB_NAME)-$(BUS_LIB_VER).tar.gz
+	mv $(CCS_LIB_NAME)-$(CCS_LIB_VER) $(EXTRA_SRC_DIR)/
+	mv $(BUS_LIB_NAME)-$(BUS_LIB_VER) $(EXTRA_SRC_DIR)/
+
+build: test-variables our-src board-src board-archive link
+	@echo ""
 	@echo "Build successful"
+	@echo ""
 
 clean:
 	rm -r $(BUILD_DIR)
 
+upload:
+	$(TOOL_AVR_DIR)/bin/avrdude -C$(TOOL_AVR_DIR)/etc/avrdude.conf -v -V -patmega328p -carduino "-P/dev/ttyUSB0" -b115200 -D "-Uflash:w:$(BIN_DIR)/$(BIN_NAME).hex:i"
+
 setup:
+	mkdir -p $(EXTRA_SRC_DIR)
 	mkdir -p $(BUILD_DIR)
 	mkdir -p $(OBJ_DIR)
 	mkdir -p $(ARDUINO_OBJ_DIR)
+	mkdir -p $(EXTRA_OBJ_DIR)
 	mkdir -p $(DEP_DIR)
 	mkdir -p $(ARDUINO_DEP_DIR)
+	mkdir -p $(EXTRA_DEP_DIR)
 	mkdir -p $(BIN_DIR)
 
 test-variables: setup
-	$(foreach fut,$(FILES_UNDER_TEST),$(call TEST_FOR_EXISTENCE,fut))
+	$(foreach fut,$(DIRS_UNDER_TEST),$(call TEST_FOR_EXISTENCE,fut))
 
 our-src: $(OUR_OBJ)
 
@@ -166,6 +201,3 @@ link:
 	$(TOOL_GCC_DIR)/bin/avr-objcopy -O ihex -j .eeprom --set-section-flags=.eeprom=alloc,load --no-change-warnings --change-section-lma .eeprom=0 $(BIN_DIR)/$(BIN_NAME).elf $(BIN_DIR)/$(BIN_NAME).eep
 	$(TOOL_GCC_DIR)/bin/avr-objcopy -O ihex -R .eeprom $(BIN_DIR)/$(BIN_NAME).elf $(BIN_DIR)/$(BIN_NAME).hex
 	$(TOOL_GCC_DIR)/bin/avr-size -A $(BIN_DIR)/$(BIN_NAME).elf
-
-upload:
-	$(TOOL_AVR_DIR)/bin/avrdude -C$(TOOL_AVR_DIR)/etc/avrdude.conf -v -V -patmega328p -carduino "-P/dev/ttyUSB0" -b115200 -D "-Uflash:w:$(BIN_DIR)/$(BIN_NAME).hex:i"
