@@ -34,14 +34,8 @@ port will glow.
 
 # Build commands
 
-Refer to [specifications](#Specifications) for software used to develop this
-repository.
-
-The following instructions should be run from a terminal:
-
-- `make build`: Builds the binar(ies) needed for operation
-- `make clean`: Removes all build artifacts from the repository
-- `make upload`: Pushes the binar(ies) to the device
+Run `make` without any arguments to see an up to date list of commands along
+with their description.
 
 ## Upload considerations
 
@@ -59,4 +53,6 @@ permissions for your user using `chmod`.
 - `make`: v4.3
 - `avrdude`: v6.0.3-arduino17
 - `gcc`: 7.3.0-atmel3.6.1-arduino7
+- Adafruit CCS811 library: 1.1.1
+- Adafruit BusIO library: 1.14.1
 
